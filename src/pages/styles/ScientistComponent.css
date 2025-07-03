@@ -1,0 +1,163 @@
+.scientists-container {
+    padding: 20px;
+    background-color: #f9f9f9;
+  }
+  
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+  }
+  
+  .select-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  select {
+    padding: 5px 10px;
+    font-size: 16px;
+    border: 2px solid #007bff;
+    border-radius: 5px;
+  }
+  
+  .report-button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .report-button:hover, #clear:hover, #abut:hover {
+    background-color: #173a1d;
+    color: white;
+  }
+  
+  .sensor-grid {
+    display: flex;
+    gap: 20px;
+    width: 90%;
+    margin-top: 2%;
+    margin-left: 6%;
+  }
+  
+  .sensor {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #007bff;
+    border-radius: 10px;
+    background-color: #ffffff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  h3 {
+    text-align: center;
+    color: #007bff;
+  }
+  
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+  
+  li {
+    font-size: 16px;
+    margin-bottom: 5px;
+  }
+  
+  .chart-container {
+    margin-top: 10px;
+  }
+  
+  .report-container {
+    text-align: center;
+    border: 1px solid #bbbdbe ;
+    width: 80%;
+    margin: 2px auto;
+    
+  }
+  
+  .report-image {
+    max-width: 100%;
+    margin: 10px 0;
+    border: 2px solid #007bff;
+    border-radius: 5px;
+    margin-top: -100px;
+  }
+  
+  .map-container2{
+    margin: 90px 0 80px 100px ;
+  }
+
+  #alarm{
+    text-align: right;
+
+  }
+
+
+  #choose{
+    margin-top: 1%;
+  }
+  #abut{
+    margin-top: 10px;
+    width: 180px;
+    height: 40px;
+    background-color: #28a745
+;
+color: white;
+  }
+  .sensor1, .sensor2, .sensor3 {
+    color: #007bff;
+
+  }
+  .Danger{
+    
+      color: red;
+      font-size: 24px; /* Adjust size as needed */
+      font-weight: bold;
+      text-align: center;
+      animation: blinking 1s infinite;
+    }
+    
+    @keyframes blinking {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0;
+      }
+    }
+  
+    #Danger{
+      background-color: rgb(71, 2, 2);
+      
+      animation: blinking 1s infinite;
+    }
+    #clear{
+      min-width: 180px;
+      height: 40px;
+      align-self: center;
+      margin-left: 12%;
+      background-color: #28a745;
+      color: white;
+    }
+    .map-container1 h2{
+     text-align: left;
+
+    }
+    #user{
+      text-align: left;
+    }
+    .user{
+      display: flex;
+      justify-content: space-between;
+    }
+    #vul{
+      margin-right: 35%;
+    }
