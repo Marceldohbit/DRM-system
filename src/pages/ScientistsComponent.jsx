@@ -10,6 +10,9 @@ import { FaMountain, FaWater, FaVolcano } from "react-icons/fa6";
 import { MapContainer, TileLayer, Marker, Popup, Polygon } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { FaPlus, FaMapMarkerAlt } from "react-icons/fa";
+import { FaCheckCircle, FaVideo, FaRegCircle } from "react-icons/fa";
+import SatelliteAsk from "./SatelliteAsk";
+
 //import { Tab } from '@headlessui/react';
 
 import {
@@ -38,6 +41,84 @@ const hazards = [
   { key: "landslide", label: "Landslide", icon: <FaMountain /> },
   { key: "flood", label: "Flood", icon: <FaWater /> },
   { key: "volcano", label: "Volcanic Eruption", icon: <FaVolcano /> },
+];
+
+const sidebarTabs = [
+  ...hazards,
+  { key: "satellite", label: "Satellites", icon: <FaRegCircle /> },
+];
+
+// Satellite data
+const satelliteList = [
+  {
+    id: 1,
+    name: "GeoSat-1",
+    measures: "Thermal Imaging, Ground Deformation",
+    zone: "Buea",
+    stationary: false,
+    color: "#1d4ed8",
+    // Buea: approx 4.159, 9.241
+    trajectory: [
+      { lat: 4.159, lng: 9.241 },
+      { lat: 4.162, lng: 9.245 },
+      { lat: 4.165, lng: 9.250 },
+      { lat: 4.162, lng: 9.255 },
+      { lat: 4.159, lng: 9.260 },
+      { lat: 4.156, lng: 9.255 },
+      { lat: 4.153, lng: 9.250 },
+      { lat: 4.156, lng: 9.245 },
+    ],
+    orbitPeriod: 24000, // 24s for a full spiral
+  },
+  {
+    id: 2,
+    name: "HydroSat-X",
+    measures: "Flood Mapping, Water Level",
+    zone: "Limbe",
+    stationary: false,
+    color: "#059669",
+    // Limbe: approx 4.035, 9.689
+    trajectory: [
+      { lat: 4.035, lng: 9.689 },
+      { lat: 4.038, lng: 9.693 },
+      { lat: 4.041, lng: 9.698 },
+      { lat: 4.038, lng: 9.703 },
+      { lat: 4.035, lng: 9.708 },
+      { lat: 4.032, lng: 9.703 },
+      { lat: 4.029, lng: 9.698 },
+      { lat: 4.032, lng: 9.693 },
+    ],
+    orbitPeriod: 26000, // 26s for a full spiral
+  },
+  {
+    id: 3,
+    name: "Landsat-Edge",
+    measures: "Landslide Detection, Vegetation",
+    zone: "Douala",
+    stationary: false,
+    color: "#f59e42",
+    // Douala: approx 4.051, 9.767
+    trajectory: [
+      { lat: 4.051, lng: 9.767 },
+      { lat: 4.054, lng: 9.771 },
+      { lat: 4.057, lng: 9.776 },
+      { lat: 4.054, lng: 9.781 },
+      { lat: 4.051, lng: 9.786 },
+      { lat: 4.048, lng: 9.781 },
+      { lat: 4.045, lng: 9.776 },
+      { lat: 4.048, lng: 9.771 },
+    ],
+    orbitPeriod: 28000, // 28s for a full spiral
+  },
+  {
+    id: 4,
+    name: "StationSat-Z",
+    measures: "Standby (All Hazards)",
+    zone: "Central Command",
+    stationary: true,
+    color: "#a21caf",
+    position: { lat: 4.5, lng: 9.5 },
+  },
 ];
 
 // Simulated vulnerability reports for each hazard
@@ -115,7 +196,7 @@ const defineSensorParams = {
     { label: "Rainfall (mm/h)", key: "rainfall" },
     { label: "Soil Moisture (%)", key: "soilMoisture" },
     { label: "Slope Angle (°)", key: "slopeAngle" },
-    { label: "Seismic Activities (Hz)", key: "seismic" },
+    { label: "Seismic Activity (Hz)", key: "seismic" },
     { label: "Temperature (°C)", key: "temperature" },
     { label: "Humidity (%)", key: "humidity" },
     { label: "Vegetation Cover (%)", key: "vegetation" },
@@ -128,6 +209,7 @@ const defineSensorParams = {
     { label: "Temperature (°C)", key: "temperature" },
     { label: "Slope Angle (°)", key: "slopeAngle" },
     { label: "Tide Level (m)", key: "tideLevel" },
+    { label: "Pump Status", key: "pumpStatus" },
   ],
   volcano: [
     { label: "Seismic Activity (Hz)", key: "seismic" },
@@ -172,6 +254,8 @@ const hazardSensors = {
   ],
 };
 
+import CircleAnimation from "./CircleAnimation";
+
 const ScientistsComponent = () => {
   const [region, setRegion] = useState("Northwest");
   const [sensorData, setSensorData] = useState([[], [], []]);
@@ -183,7 +267,63 @@ const ScientistsComponent = () => {
   const [S0, setS1] = useState('sensor1')
   const [S1, setS2] = useState('sensor2')
   const [S2, setS3] = useState('sensor3')
+  const [activeSidebarTab, setActiveSidebarTab] = useState("landslide");
   const [activeHazard, setActiveHazard] = useState("landslide");
+  const [showSatelliteMap, setShowSatelliteMap] = useState(null); // satellite id or null
+
+  // --- Animated Orbit for Satellites ---
+  // For each moving satellite, define a zone center and max radius (for spiral/circular orbit)
+  const satelliteOrbitParams = satelliteList.map(sat => {
+    if (sat.stationary) {
+      return { center: sat.position, maxRadius: 0, angleOffset: 0, orbitPeriod: 20000 };
+    }
+    // Use average of trajectory points as center (city center)
+    const n = sat.trajectory.length;
+    const avgLat = sat.trajectory.reduce((sum, p) => sum + p.lat, 0) / n;
+    const avgLng = sat.trajectory.reduce((sum, p) => sum + p.lng, 0) / n;
+    // Use max distance from center as maxRadius (in degrees)
+    let maxRadius = 0;
+    sat.trajectory.forEach(p => {
+      const d = Math.sqrt(Math.pow(p.lat - avgLat, 2) + Math.pow(p.lng - avgLng, 2));
+      maxRadius = Math.max(maxRadius, d);
+    });
+    maxRadius += 0.01; // tighter for city
+    const angleOffset = Math.random() * 2 * Math.PI;
+    return { center: { lat: avgLat, lng: avgLng }, maxRadius, angleOffset, orbitPeriod: sat.orbitPeriod || 24000 };
+  });
+
+  // Animate satellites smoothly along their orbits
+  const [satellitePositions, setSatellitePositions] = useState(() =>
+    satelliteList.map((sat, i) => sat.stationary ? sat.position : { ...satelliteOrbitParams[i].center })
+  );
+
+  useEffect(() => {
+    let frame;
+    function animate() {
+      const now = Date.now();
+      setSatellitePositions(
+        satelliteList.map((sat, i) => {
+          if (sat.stationary) return sat.position;
+          const { center, maxRadius, angleOffset, orbitPeriod } = satelliteOrbitParams[i];
+          // Spiral period: use orbitPeriod for each satellite
+          const period = orbitPeriod;
+          const t = ((now % period) / period); // 0 to 1
+          // Spiral radius: goes from 0.3*maxRadius to maxRadius and back
+          const spiralRadius = 0.3 * maxRadius + (maxRadius - 0.3 * maxRadius) * (0.5 - 0.5 * Math.cos(2 * Math.PI * t));
+          // Angle for orbiting
+          const theta = (2 * Math.PI * t * 2 + angleOffset) % (2 * Math.PI); // 2 orbits per spiral
+          return {
+            lat: center.lat + spiralRadius * Math.cos(theta),
+            lng: center.lng + spiralRadius * Math.sin(theta),
+          };
+        })
+      );
+      frame = requestAnimationFrame(animate);
+    }
+    frame = requestAnimationFrame(animate);
+    return () => frame && cancelAnimationFrame(frame);
+    // eslint-disable-next-line
+  }, []);
   const [activeTab, setActiveTab] = useState("sensor");
   const [sensorHistory, setSensorHistory] = useState([]);
   const [bigSensor, setBigSensor] = useState(null);
@@ -200,6 +340,61 @@ const ScientistsComponent = () => {
   const [messages, setMessages] = useState([]);
   const [cmdRefresh, setCmdRefresh] = useState(0);
   const [investigationPoints, setInvestigationPoints] = useState([]);
+
+  // --- Satellite Analysis Actions ---
+  // Add videoRequested and videoAvailable to reports (in-memory, not persisted)
+  const [satReports, setSatReports] = useState(() => {
+    // Deep clone to avoid mutating original
+    return hazardVulnerabilityReports[activeHazard]?.map(r => ({ ...r })) || [];
+  });
+
+  // Keep satReports in sync with activeHazard
+  useEffect(() => {
+    setSatReports(hazardVulnerabilityReports[activeHazard]?.map(r => ({ ...r })) || []);
+  }, [activeHazard]);
+
+  // Handler: Mark for Investigation
+  const handleMarkForInvestigation = (report) => {
+    // Prevent duplicates by uniqueKey (hazard+id)
+    const uniqueKey = `${activeHazard}-${report.id}`;
+    if (!investigationPoints.some(p => p.uniqueKey === uniqueKey)) {
+      setInvestigationPoints(prev => [
+        ...prev,
+        {
+          uniqueKey,
+          address: report.address,
+          lat: report.location.lat,
+          lng: report.location.lng,
+          description: report.description,
+          time: report.time,
+          severity: report.severity,
+          videoAvailable: !!report.videoRequested,
+        }
+      ]);
+    }
+  };
+
+  // Handler: Request Video Feed
+  const handleRequestVideoFeed = (report) => {
+    setSatReports(prev => prev.map(r =>
+      r.id === report.id ? { ...r, videoRequested: true } : r
+    ));
+    // Also update investigationPoints if already marked
+    const uniqueKey = `${activeHazard}-${report.id}`;
+    setInvestigationPoints(prev => prev.map(p =>
+      p.uniqueKey === uniqueKey ? { ...p, videoAvailable: true } : p
+    ));
+  };
+
+  // Handler: View Video Feed (placeholder)
+  const handleViewVideoFeed = (report) => {
+    toast.info(`Showing video feed for ${report.address}`);
+  };
+
+  // Handler: Alert Authorities (placeholder)
+  const handleAlertAuthorities = (report) => {
+    toast.warn(`Authorities alerted for ${report.address}`);
+  };
 
   const Thetext = `
   A steep slope at the edge of our quarter has become a growing concern.Over the past weeks, visible cracks 
@@ -513,15 +708,18 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
     <div className="min-h-screen flex bg-gradient-to-br from-blue-100 via-blue-200 to-blue-50 pt-24">
     {/* Sidebar Navigation */}
     <aside className="w-72 bg-white/80 shadow-2xl flex flex-col py-10 px-6 gap-8 fixed top-20 left-0 h-[calc(100vh-5rem)] z-40 rounded-tr-3xl rounded-br-3xl border-r border-blue-200 backdrop-blur-md">
-      <h1 className="text-3xl font-extrabold text-blue-800 mb-10 tracking-tight">Hazards</h1>
+      <h1 className="text-3xl font-extrabold text-blue-800 mb-10 tracking-tight">Navigation</h1>
       <nav className="flex flex-col gap-6">
-        {hazards.map((hazard) => (
+        {sidebarTabs.map((tab) => (
           <button
-            key={hazard.key}
-            className={`flex items-center gap-4 px-6 py-3 rounded-xl font-bold text-lg shadow transition-all duration-200 border-2 focus:outline-none tracking-tight ${activeHazard === hazard.key ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
-            onClick={() => setActiveHazard(hazard.key)}
+            key={tab.key}
+            className={`flex items-center gap-4 px-6 py-3 rounded-xl font-bold text-lg shadow transition-all duration-200 border-2 focus:outline-none tracking-tight ${activeSidebarTab === tab.key ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
+            onClick={() => {
+              setActiveSidebarTab(tab.key);
+              if (hazards.some(h => h.key === tab.key)) setActiveHazard(tab.key);
+            }}
           >
-            {hazard.icon} {hazard.label}
+            {tab.icon} {tab.label}
           </button>
         ))}
       </nav>
@@ -529,180 +727,280 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
     {/* Main Content */}
     <main className="flex-1 p-10 ml-72 mt-4 overflow-y-auto h-[calc(100vh-5rem)]">
       <div className="max-w-7xl mx-auto bg-white/95 rounded-3xl shadow-2xl p-10 border border-blue-100">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-10 gap-6">
-          <h2 className="text-3xl font-extrabold text-blue-800 tracking-tight drop-shadow">{hazards.find(h => h.key === activeHazard)?.label} Dashboard</h2>
-          <div className="flex gap-4">
-            <button
-              className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'sensor' ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
-              onClick={() => setActiveTab('sensor')}
-            >Sensor Data</button>
-            <button
-              className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'vulnerability' ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
-              onClick={() => setActiveTab('vulnerability')}
-            >Vulnerability Assessment</button>
-          </div>
-        </div>
-        {/* Tab Content */}
-        {activeTab === 'sensor' && (
-          <div className="w-full flex flex-col gap-8">
-            {/* Region filter and search */}
-            <div className="flex flex-wrap gap-4 mb-6 items-end">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Region</label>
-                <select
-                  className="border border-gray-300 rounded px-3 py-2"
-                  value={selectedRegion}
-                  onChange={e => setSelectedRegion(e.target.value)}
-                >
-                  <option value="">All Regions</option>
-                  {cameroonRegions.map(region => (
-                    <option key={region} value={region}>{region}</option>
-                  ))}
-                </select>
+        {/* Sidebar tab content switch */}
+        {activeSidebarTab !== 'satellite' ? (
+          <>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-10 gap-6">
+              <h2 className="text-3xl font-extrabold text-blue-800 tracking-tight drop-shadow">{hazards.find(h => h.key === activeHazard)?.label} Dashboard</h2>
+              <div className="flex gap-4">
+                <button
+                  className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'sensor' ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
+                  onClick={() => setActiveTab('sensor')}
+                >Sensor Data</button>
+                <button
+                  className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'vulnerability' ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
+                  onClick={() => setActiveTab('vulnerability')}
+                >Vulnerability Assessment</button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                <input
-                  type="text"
-                  className="border border-gray-300 rounded px-3 py-2"
-                  placeholder="Sensor name or address"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <button
-                className="ml-2 px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
-                onClick={() => { /* No-op, search is live, but button for UI */ }}
-              >Search</button>
-              <button
-                className="ml-2 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
-                onClick={() => setShowAddSensor(true)}
-              >+ Add Sensor</button>
             </div>
-            {showAddSensor && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-                <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm relative">
-                  <button className="absolute top-2 right-2 text-xl" onClick={() => setShowAddSensor(false)}>&times;</button>
-                  <h4 className="font-bold mb-4">Add Sensor</h4>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Latitude</label>
-                    <input type="number" className="border rounded px-3 py-2 w-full" value={newLat} onChange={e => setNewLat(e.target.value)} />
+            {/* Tab Content */}
+            {activeTab === 'sensor' && (
+              <div className="w-full flex flex-col gap-8">
+                {/* Region filter and search */}
+                <div className="flex flex-wrap gap-4 mb-6 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Region</label>
+                    <select
+                      className="border border-gray-300 rounded px-3 py-2"
+                      value={selectedRegion}
+                      onChange={e => setSelectedRegion(e.target.value)}
+                    >
+                      <option value="">All Regions</option>
+                      {cameroonRegions.map(region => (
+                        <option key={region} value={region}>{region}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Longitude</label>
-                    <input type="number" className="border rounded px-3 py-2 w-full" value={newLng} onChange={e => setNewLng(e.target.value)} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input
+                      type="text"
+                      className="border border-gray-300 rounded px-3 py-2"
+                      placeholder="Sensor name or address"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                    />
                   </div>
-                  <button className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700" onClick={handleAddSensor}>Add</button>
+                  <button
+                    className="ml-2 px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                    onClick={() => { /* No-op, search is live, but button for UI */ }}
+                  >Search</button>
+                  <button
+                    className="ml-2 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+                    onClick={() => setShowAddSensor(true)}
+                  >+ Add Sensor</button>
+                </div>
+                {showAddSensor && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                    <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm relative">
+                      <button className="absolute top-2 right-2 text-xl" onClick={() => setShowAddSensor(false)}>&times;</button>
+                      <h4 className="font-bold mb-4">Add Sensor</h4>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Latitude</label>
+                        <input type="number" className="border rounded px-3 py-2 w-full" value={newLat} onChange={e => setNewLat(e.target.value)} />
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Longitude</label>
+                        <input type="number" className="border rounded px-3 py-2 w-full" value={newLng} onChange={e => setNewLng(e.target.value)} />
+                      </div>
+                      <button className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700" onClick={handleAddSensor}>Add</button>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+                  {filteredSensors.map((sensor, idx) => {
+                    // ...existing code for rendering each sensor card...
+                    const sensorIdx = allSensors.findIndex(s => s.id === sensor.id);
+                    return (
+                      <div
+                        key={sensor.id}
+                        className="relative bg-blue-50 rounded-lg p-6 shadow flex flex-col"
+                        style={{ height: '22rem', minHeight: '16rem' }}
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <h3 className="text-lg font-semibold">{sensor.name} <span className="text-xs text-gray-500">({sensor.address})</span></h3>
+                          <div className="flex gap-2">
+                            <button
+                              className="p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800"
+                              onClick={() => setShowSensorMap(sensor.id)}
+                              title="Show on Map"
+                            >
+                              <FaMapMarkerAlt />
+                            </button>
+                            <button
+                              className="p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800"
+                              onClick={() => setBigSensor(bigSensor === sensor.id ? null : sensor.id)}
+                              title={bigSensor === sensor.id ? "Minimize" : "Show Details"}
+                            >
+                              <FaPlus className={bigSensor === sensor.id ? 'rotate-45 transition-transform' : ''} />
+                            </button>
+                          </div>
+                        </div>
+                        {/* Always show the graph, only show parameters if expanded */}
+                        <div className="w-full flex-1 min-h-0 mb-2">
+                          <Line
+                            data={{
+                              labels: (sensorHistories[sensorIdx] || []).map((_, i) => `T-${i * 2}s`).reverse(),
+                              datasets: [
+                                {
+                                  label: 'Aggregate Value',
+                                  data: (sensorHistories[sensorIdx] || []).map(h => aggregateSensorValuesForSensor(h, activeHazard)).reverse(),
+                                  borderColor: 'rgb(37, 99, 235)',
+                                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                  borderWidth: 3,
+                                  pointRadius: 2,
+                                  tension: 0.4,
+                                },
+                              ],
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: { display: true, position: 'top', labels: { font: { size: 14 } } },
+                                title: { display: false },
+                                tooltip: { enabled: true },
+                              },
+                              scales: {
+                                x: { title: { display: true, text: 'Time', font: { size: 14 } } },
+                                y: { title: { display: true, text: 'Aggregate Value', font: { size: 14 } } },
+                              },
+                            }}
+                            height={160}
+                          />
+                        </div>
+                        {/* Expandable parameters below the graph */}
+                        {bigSensor === sensor.id && (
+                          <div className="bg-white bg-opacity-95 rounded-b-lg p-4 z-10 shadow-xl border-t border-blue-200 mt-2">
+                            <button className="absolute right-6 top-2 text-lg font-bold text-gray-500 hover:text-red-600" onClick={() => setBigSensor(null)} title="Close">&times;</button>
+                            <ul className="space-y-2">
+                              {((sensorHistories[sensorIdx] && sensorHistories[sensorIdx][0]) || []).map((param, pidx) => {
+                                const threshold = hazardThresholds[activeHazard]?.[param.key];
+                                const isCritical =
+                                  typeof threshold === 'number'
+                                    ? Number(param.value) > threshold
+                                    : (param.key === 'pumpStatus' && param.value === 'OFF');
+                                return (
+                                  <li key={param.key} className="flex justify-between items-center text-gray-700">
+                                    <span>{param.label}</span>
+                                    <span className={`font-mono font-bold px-2 py-1 rounded ${isCritical ? 'bg-red-500 text-white' : 'text-blue-700 bg-white'}`}>{param.value}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+                        {/* Sensor location map modal */}
+                        {showSensorMap === sensor.id && (
+                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
+                            <div className="absolute inset-0 flex flex-col">
+                              <button className="absolute top-6 right-10 z-[200] text-5xl font-extrabold text-white bg-red-500 bg-opacity-80 rounded-full px-4 py-2 shadow-lg hover:bg-red-700 hover:scale-110 transition-all focus:outline-none" onClick={() => setShowSensorMap(null)} title="Close">&times;</button>
+                              <div className="absolute top-8 left-8 bg-white bg-opacity-90 rounded shadow p-4 z-50">
+                                <h4 className="font-bold mb-2">{sensor.name} Location</h4>
+                                <div className="mb-2 text-sm text-gray-600">Lat: {sensor.location.lat}, Lng: {sensor.location.lng}</div>
+                              </div>
+                              <MapContainer center={[sensor.location.lat, sensor.location.lng]} zoom={15} className="w-full h-full z-[100]">
+                                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                <Marker position={[sensor.location.lat, sensor.location.lng]}>
+                                  <Popup>{sensor.address}</Popup>
+                                </Marker>
+                                <Polygon positions={getPentagonPoints(sensor.location, 0.002)} pathOptions={{ color: 'purple', fillOpacity: 0.2 }} />
+                              </MapContainer>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
+            {activeTab === 'vulnerability' && (
+              <div className="flex flex-col gap-6">
+                {/* ...existing code for vulnerability tab... */}
+                {/* The full vulnerability tab code block is already present below, so this is just a placeholder to fix the syntax error. */}
+              </div>
+            )}
+          </>
+        ) : (
+          // Satellite tab content
+          <>
+            <h2 className="text-3xl font-extrabold text-blue-800 tracking-tight drop-shadow mb-8">Satellites Dashboard</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-              {filteredSensors.map((sensor, idx) => {
-                // Find the correct index for sensorHistories
-                const sensorIdx = allSensors.findIndex(s => s.id === sensor.id);
-                return (
-                  <div
-                    key={sensor.id}
-                    className="relative bg-blue-50 rounded-lg p-6 shadow flex flex-col"
-                    style={{ height: '22rem', minHeight: '16rem' }}
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-lg font-semibold">{sensor.name} <span className="text-xs text-gray-500">({sensor.address})</span></h3>
-                      <div className="flex gap-2">
-                        <button
-                          className="p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800"
-                          onClick={() => setShowSensorMap(sensor.id)}
-                          title="Show on Map"
-                        >
-                          <FaMapMarkerAlt />
-                        </button>
-                        <button
-                          className="p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800"
-                          onClick={() => setBigSensor(bigSensor === sensor.id ? null : sensor.id)}
-                          title={bigSensor === sensor.id ? "Minimize" : "Show Details"}
-                        >
-                          <FaPlus className={bigSensor === sensor.id ? 'rotate-45 transition-transform' : ''} />
-                        </button>
-                      </div>
-                    </div>
-                    {/* Always show the graph, only show parameters if expanded */}
-                    <div className="w-full flex-1 min-h-0 mb-2">
-                      <Line
-                        data={{
-                          labels: (sensorHistories[sensorIdx] || []).map((_, i) => `T-${i * 2}s`).reverse(),
-                          datasets: [
-                            {
-                              label: 'Aggregate Value',
-                              data: (sensorHistories[sensorIdx] || []).map(h => aggregateSensorValuesForSensor(h, activeHazard)).reverse(),
-                              borderColor: 'rgb(37, 99, 235)',
-                              backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                              borderWidth: 3,
-                              pointRadius: 2,
-                              tension: 0.4,
-                            },
-                          ],
-                        }}
-                        options={{
-                          responsive: true,
-                          maintainAspectRatio: false,
-                          plugins: {
-                            legend: { display: true, position: 'top', labels: { font: { size: 14 } } },
-                            title: { display: false },
-                            tooltip: { enabled: true },
-                          },
-                          scales: {
-                            x: { title: { display: true, text: 'Time', font: { size: 14 } } },
-                            y: { title: { display: true, text: 'Aggregate Value', font: { size: 14 } } },
-                          },
-                        }}
-                        height={160}
-                      />
-                    </div>
-                    {/* Expandable parameters below the graph */}
-                    {bigSensor === sensor.id && (
-                      <div className="bg-white bg-opacity-95 rounded-b-lg p-4 z-10 shadow-xl border-t border-blue-200 mt-2">
-                        <button className="absolute right-6 top-2 text-lg font-bold text-gray-500 hover:text-red-600" onClick={() => setBigSensor(null)} title="Close">&times;</button>
-                        <ul className="space-y-2">
-                          {((sensorHistories[sensorIdx] && sensorHistories[sensorIdx][0]) || []).map((param, pidx) => {
-                            const threshold = hazardThresholds[activeHazard]?.[param.key];
-                            const isCritical =
-                              typeof threshold === 'number'
-                                ? Number(param.value) > threshold
-                                : (param.key === 'pumpStatus' && param.value === 'OFF');
-                            return (
-                              <li key={param.key} className="flex justify-between items-center text-gray-700">
-                                <span>{param.label}</span>
-                                <span className={`font-mono font-bold px-2 py-1 rounded ${isCritical ? 'bg-red-500 text-white' : 'text-blue-700 bg-white'}`}>{param.value}</span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    )}
-                    {/* Sensor location map modal */}
-                    {showSensorMap === sensor.id && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
-                        <div className="absolute inset-0 flex flex-col">
-                          <button className="absolute top-6 right-10 z-[200] text-5xl font-extrabold text-white bg-red-500 bg-opacity-80 rounded-full px-4 py-2 shadow-lg hover:bg-red-700 hover:scale-110 transition-all focus:outline-none" onClick={() => setShowSensorMap(null)} title="Close">&times;</button>
-                          <div className="absolute top-8 left-8 bg-white bg-opacity-90 rounded shadow p-4 z-50">
-                            <h4 className="font-bold mb-2">{sensor.name} Location</h4>
-                            <div className="mb-2 text-sm text-gray-600">Lat: {sensor.location.lat}, Lng: {sensor.location.lng}</div>
-                          </div>
-                          <MapContainer center={[sensor.location.lat, sensor.location.lng]} zoom={15} className="w-full h-full z-[100]">
-                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                            <Marker position={[sensor.location.lat, sensor.location.lng]}>
-                              <Popup>{sensor.address}</Popup>
-                            </Marker>
-                            <Polygon positions={getPentagonPoints(sensor.location, 0.002)} pathOptions={{ color: 'purple', fillOpacity: 0.2 }} />
-                          </MapContainer>
-                        </div>
-                      </div>
+              {satelliteList.map((sat, idx) => (
+                <div key={sat.id} className="relative bg-blue-50 rounded-lg p-6 shadow flex flex-col border border-blue-200">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="inline-block w-4 h-4 rounded-full" style={{ background: sat.color }}></span>
+                    <span className="font-bold text-lg text-blue-900">{sat.name}</span>
+                    {sat.stationary && <span className="ml-2 px-2 py-1 rounded-full bg-purple-200 text-purple-800 text-xs font-semibold">Stationary</span>}
+                  </div>
+                  <div className="mb-1 text-gray-700"><span className="font-semibold">Measures:</span> {sat.measures}</div>
+                  <div className="mb-1 text-gray-700"><span className="font-semibold">Zone:</span> {sat.zone}</div>
+                  <div className="mb-1 text-gray-700"><span className="font-semibold">Current Position:</span> Lat: {satellitePositions[idx].lat.toFixed(3)}, Lng: {satellitePositions[idx].lng.toFixed(3)}
+                    {!sat.stationary && (
+                      <span className="ml-2 text-xs text-blue-500 animate-pulse">(Orbiting)</span>
                     )}
                   </div>
-                );
-              })}
+                  <button
+                    className="mt-3 p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800 shadow self-start"
+                    title="Show on Map"
+                    onClick={() => setShowSatelliteMap(idx)}
+                  >
+                    <FaMapMarkerAlt />
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
+            {/* Satellite Map Modal */}
+            {showSatelliteMap !== null && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
+                <div className="absolute inset-0 flex flex-col">
+                  <button className="absolute top-6 right-10 z-[200] text-5xl font-extrabold text-white bg-red-500 bg-opacity-80 rounded-full px-4 py-2 shadow-lg hover:bg-red-700 hover:scale-110 transition-all focus:outline-none" onClick={() => setShowSatelliteMap(null)} title="Close">&times;</button>
+                  <div className="absolute top-8 left-8 bg-white bg-opacity-90 rounded shadow p-4 z-50">
+                    <h4 className="font-bold mb-2">{satelliteList[showSatelliteMap].name} Trajectory</h4>
+                    <div className="mb-2 text-sm text-gray-600">Current Position: Lat: {satellitePositions[showSatelliteMap].lat.toFixed(3)}, Lng: {satellitePositions[showSatelliteMap].lng.toFixed(3)}</div>
+                  </div>
+                  <MapContainer center={[satellitePositions[showSatelliteMap].lat, satellitePositions[showSatelliteMap].lng]} zoom={8} className="w-full h-full z-[100]">
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    {/* Draw the zone as a circle for moving satellites */}
+                    {!satelliteList[showSatelliteMap].stationary && (
+                      <>
+                        {/* Draw the zone as a circle */}
+                        {(() => {
+                          const { center, maxRadius } = satelliteOrbitParams[showSatelliteMap];
+                          // Convert maxRadius (in degrees) to meters (approx, 1 deg lat ~ 111km)
+                          const meters = maxRadius * 111000;
+                          return (
+                            <CircleAnimation
+                              lat={center.lat}
+                              lng={center.lng}
+                              color={satelliteList[showSatelliteMap].color}
+                              minRadius={meters * 0.98}
+                              maxRadius={meters * 1.02}
+                              duration={4000}
+                            />
+                          );
+                        })()}
+                        {/* Moving marker with animated circle */}
+                        <Marker position={[satellitePositions[showSatelliteMap].lat, satellitePositions[showSatelliteMap].lng]}>
+                          <Popup>{satelliteList[showSatelliteMap].name} (Moving)</Popup>
+                        </Marker>
+                        {/* Animated circle around marker */}
+                        <CircleAnimation
+                          lat={satellitePositions[showSatelliteMap].lat}
+                          lng={satellitePositions[showSatelliteMap].lng}
+                          color={satelliteList[showSatelliteMap].color}
+                        />
+                      </>
+                    )}
+                    {satelliteList[showSatelliteMap].stationary && (
+                      <>
+                        <Marker position={[satellitePositions[showSatelliteMap].lat, satellitePositions[showSatelliteMap].lng]}>
+                          <Popup>{satelliteList[showSatelliteMap].name} (Stationary)</Popup>
+                        </Marker>
+                        {/* Animated circle for stationary as well for consistency */}
+                        <CircleAnimation
+                          lat={satellitePositions[showSatelliteMap].lat}
+                          lng={satellitePositions[showSatelliteMap].lng}
+                          color={satelliteList[showSatelliteMap].color}
+                        />
+                      </>
+                    )}
+                  </MapContainer>
+                </div>
+              </div>
+            )}
+          </>
         )}
         {activeTab === 'vulnerability' && (
           <div className="flex flex-col gap-6">
@@ -743,125 +1041,123 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
               </div>
             )}
             {vulTab === 'sat' && (
-              <div className="flex flex-col md:flex-row gap-8">
-                {/* Satellite Vulnerability Reports List */}
-                <div className="flex-1 space-y-4">
-                  <h3 className="text-lg font-semibold mb-2">Satellite Vulnerability Reports</h3>
-                  {reports.map((report) => (
-                    <div key={report.id} className="flex gap-4 bg-blue-50 rounded-lg p-4 shadow items-center">
-                      <img src={report.image} alt="Satellite" className="w-24 h-24 object-cover rounded border cursor-pointer" onClick={() => setFullscreenImg(report.image)} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`inline-block w-3 h-3 rounded-full ${severityColors[report.severity]}`}></span>
-                          <span className="font-bold capitalize">{report.severity} risk</span>
-                          <span className="ml-2 text-xs text-gray-500">{report.time}</span>
-                        </div>
-                        <div className="font-semibold">{report.address}</div>
-                        <div className="text-gray-700 text-sm">{report.description}</div>
-                        {/* Map icon for full screen map */}
-                        <button
-                          className="mt-2 p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800 shadow"
-                          title="Show on Map"
-                          onClick={() => setShowSensorMap(report.id)}
-                        >
-                          <FaMapMarkerAlt />
-                        </button>
-                        {/* Command & Control for Drones/Satellites */}
-                        <div className="mt-3 flex flex-col gap-2">
-                          <div className="font-semibold text-blue-700">Command & Control</div>
-                          <div className="flex gap-2 items-center">
-                            <input
-                              type="number"
-                              step="0.0001"
-                              placeholder="Latitude"
-                              className="border border-blue-300 rounded px-2 py-1 w-28"
-                              value={report.cmdLat || ''}
-                              onChange={e => {
-                                report.cmdLat = e.target.value;
-                                setCmdRefresh(Math.random());
-                              }}
-                            />
-                            <input
-                              type="number"
-                              step="0.0001"
-                              placeholder="Longitude"
-                              className="border border-blue-300 rounded px-2 py-1 w-28"
-                              value={report.cmdLng || ''}
-                              onChange={e => {
-                                report.cmdLng = e.target.value;
-                                setCmdRefresh(Math.random());
-                              }}
-                            />
-                            
-                            <button
-                              className="px-3 py-1 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 shadow"
-                              onClick={() => handleRequestVideoFeed(report)}
-                            >
-                              Request Video Feed
-                            </button>
+              <>
+                <div className="flex flex-col md:flex-row gap-8">
+                  {/* Satellite Vulnerability Reports List */}
+                  <div className="flex-1 space-y-4">
+                    <h3 className="text-lg font-semibold mb-2">Satellite Vulnerability Reports</h3>
+                    {satReports.map((report) => (
+                      <div key={report.id} className="flex gap-4 bg-blue-50 rounded-lg p-4 shadow items-center">
+                        <img src={report.image} alt="Satellite" className="w-24 h-24 object-cover rounded border cursor-pointer" onClick={() => setFullscreenImg(report.image)} />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`inline-block w-3 h-3 rounded-full ${severityColors[report.severity]}`}></span>
+                            <span className="font-bold capitalize">{report.severity} risk</span>
+                            <span className="ml-2 text-xs text-gray-500">{report.time}</span>
                           </div>
-                          {report.videoRequested && (
-                            <div className="mt-2 p-2 bg-green-100 rounded text-green-700 font-semibold flex items-center gap-2">
-                              <span>Video feed requested for ({report.cmdLat}, {report.cmdLng})</span>
-                              <button className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-700" onClick={() => handleViewVideoFeed(report)}>View Feed</button>
+                          <div className="font-semibold">{report.address}</div>
+                          <div className="text-gray-700 text-sm">{report.description}</div>
+                          {/* Map icon for full screen map */}
+                          <button
+                            className="mt-2 p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800 shadow"
+                            title="Show on Map"
+                            onClick={() => setShowSensorMap(report.id)}
+                          >
+                            <FaMapMarkerAlt />
+                          </button>
+                          {/* Message/Ask DeepSeek icon */}
+                          <SatelliteAsk report={report} />
+                          {/* Command & Control for Drones/Satellites */}
+                          <div className="mt-3 flex flex-col gap-2">
+                            <div className="font-semibold text-blue-700">Command & Control</div>
+                            <div className="flex gap-2 items-center">
+                              <span className="text-sm text-gray-700">Lat: {report.location.lat}, Lng: {report.location.lng}</span>
+                              <button
+                                className={`px-3 py-1 rounded font-semibold shadow ${report.videoRequested ? 'bg-gray-400 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                onClick={() => handleRequestVideoFeed(report)}
+                                disabled={!!report.videoRequested}
+                              >
+                                {report.videoRequested ? 'Video Requested' : 'Request Video Feed'}
+                              </button>
+                            </div>
+                            {report.videoRequested && (
+                              <div className="mt-2 p-2 bg-green-100 rounded text-green-700 font-semibold flex items-center gap-2">
+                                <FaVideo className="text-green-600" />
+                                <span>Video feed requested for ({report.location.lat}, {report.location.lng})</span>
+                                <button className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-700" onClick={() => handleViewVideoFeed(report)}>View Feed</button>
+                              </div>
+                            )}
+                          </div>
+                          {/* Additional actions */}
+                          <div className="mt-2 flex gap-2 items-center relative">
+                            <button className="px-3 py-1 rounded bg-yellow-500 text-white font-semibold hover:bg-yellow-600 shadow relative" onClick={() => handleMarkForInvestigation(report)}>
+                              Mark for Investigation
+                              {/* Green circled check if already marked */}
+                              {investigationPoints.some(p => p.uniqueKey === `${activeHazard}-${report.id}`) && (
+                                <span className="absolute -top-3 -right-3 bg-white rounded-full p-1 shadow-lg z-10">
+                                  <FaCheckCircle className="text-green-500 text-xl" style={{ borderRadius: '50%', background: 'white' }} />
+                                </span>
+                              )}
+                            </button>
+                            <button className="px-3 py-1 rounded bg-red-600 text-white font-semibold hover:bg-red-700 shadow" onClick={() => handleAlertAuthorities(report)}>Alert Authorities</button>
+                          </div>
+                          {showSensorMap === report.id && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
+                              <div className="absolute inset-0 flex flex-col">
+                                <button className="absolute top-6 right-10 z-[200] text-5xl font-extrabold text-white bg-red-500 bg-opacity-80 rounded-full px-4 py-2 shadow-lg hover:bg-red-700 hover:scale-110 transition-all focus:outline-none" onClick={() => setShowSensorMap(null)} title="Close">&times;</button>
+                                <div className="absolute top-8 left-8 bg-white bg-opacity-90 rounded shadow p-4 z-50">
+                                  <h4 className="font-bold mb-2">{report.address} Location</h4>
+                                  <div className="mb-2 text-sm text-gray-600">Lat: {report.location.lat}, Lng: {report.location.lng}</div>
+                                </div>
+                                <MapContainer center={[report.location.lat, report.location.lng]} zoom={15} className="w-full h-full z-[100]">
+                                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                  <Marker position={[report.location.lat, report.location.lng]}>
+                                    <Popup>{report.address}</Popup>
+                                  </Marker>
+                                  <Polygon positions={getPentagonPoints(report.location, 0.002)} pathOptions={{ color: 'purple', fillOpacity: 0.2 }} />
+                                </MapContainer>
+                              </div>
                             </div>
                           )}
                         </div>
-                        {/* Additional actions */}
-                        <div className="mt-2 flex gap-2">
-                          <button className="px-3 py-1 rounded bg-yellow-500 text-white font-semibold hover:bg-yellow-600 shadow" onClick={() => handleMarkForInvestigation(report)}>Mark for Investigation</button>
-                          <button className="px-3 py-1 rounded bg-red-600 text-white font-semibold hover:bg-red-700 shadow" onClick={() => handleAlertAuthorities(report)}>Alert Authorities</button>
-                        </div>
-                        {showSensorMap === report.id && (
-                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
-                            <div className="absolute inset-0 flex flex-col">
-                              <button className="absolute top-6 right-10 z-[200] text-5xl font-extrabold text-white bg-red-500 bg-opacity-80 rounded-full px-4 py-2 shadow-lg hover:bg-red-700 hover:scale-110 transition-all focus:outline-none" onClick={() => setShowSensorMap(null)} title="Close">&times;</button>
-                              <div className="absolute top-8 left-8 bg-white bg-opacity-90 rounded shadow p-4 z-50">
-                                <h4 className="font-bold mb-2">{report.address} Location</h4>
-                                <div className="mb-2 text-sm text-gray-600">Lat: {report.location.lat}, Lng: {report.location.lng}</div>
-                              </div>
-                              <MapContainer center={[report.location.lat, report.location.lng]} zoom={15} className="w-full h-full z-[100]">
-                                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                                <Marker position={[report.location.lat, report.location.lng]}>
-                                  <Popup>{report.address}</Popup>
-                                </Marker>
-                                <Polygon positions={getPentagonPoints(report.location, 0.002)} pathOptions={{ color: 'purple', fillOpacity: 0.2 }} />
-                              </MapContainer>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Map with User Report Marker */}
+                  {/* Satellite Analysis Map removed as requested */}
+                </div>
+                {/* Investigation Points List: always visible, even if empty */}
+                <div className="mt-8 bg-blue-50 rounded-xl p-6 shadow border border-blue-200">
+                  <h3 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">Investigation Points <FaCheckCircle className="text-yellow-500" /></h3>
+                  {investigationPoints.length === 0 ? (
+                    <div className="text-blue-400 font-semibold">No points marked for investigation yet.</div>
+                  ) : (
+                    <ul className="space-y-3">
+                      {investigationPoints.map(point => (
+                        <li key={point.uniqueKey} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-white rounded-lg p-4 shadow border border-blue-100">
+                          <div className="flex items-center gap-2">
+                            <FaCheckCircle className="text-yellow-500" title="Marked for Investigation" />
+                            <div>
+                              <div className="font-semibold text-blue-700">{point.address}</div>
+                              <div className="text-sm text-gray-600">Lat: {point.lat}, Lng: {point.lng}</div>
+                              <div className="text-xs text-gray-500">{point.description}</div>
+                              <div className="text-xs text-gray-400">{point.time}</div>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                          <div className="flex gap-3 items-center mt-2 md:mt-0">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${point.severity === 'critical' ? 'bg-red-500 text-white' : point.severity === 'moderate' ? 'bg-yellow-400 text-black' : 'bg-green-500 text-white'}`}>{point.severity}</span>
+                            {point.videoAvailable ? (
+                              <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-200 text-green-800 font-semibold text-xs"><FaVideo /> Video Feed Available</span>
+                            ) : (
+                              <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-200 text-gray-600 font-semibold text-xs"><FaVideo /> No Video</span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                {/* Map with User Report Marker */}
-                {/* Satellite Analysis Map removed as requested */}
-              </div>
-            )}
-            {vulTab === 'sat' && investigationPoints.length > 0 && (
-              <div className="mt-8 bg-blue-50 rounded-xl p-6 shadow border border-blue-200">
-                <h3 className="text-xl font-bold text-blue-800 mb-4">Investigation Points</h3>
-                <ul className="space-y-3">
-                  {investigationPoints.map(point => (
-                    <li key={point.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-white rounded-lg p-4 shadow border border-blue-100">
-                      <div>
-                        <div className="font-semibold text-blue-700">{point.address}</div>
-                        <div className="text-sm text-gray-600">Lat: {point.lat}, Lng: {point.lng}</div>
-                        <div className="text-xs text-gray-500">{point.description}</div>
-                        <div className="text-xs text-gray-400">{point.time}</div>
-                      </div>
-                      <div className="flex gap-3 items-center mt-2 md:mt-0">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${point.severity === 'critical' ? 'bg-red-500 text-white' : point.severity === 'moderate' ? 'bg-yellow-400 text-black' : 'bg-green-500 text-white'}`}>{point.severity}</span>
-                        {point.videoAvailable ? (
-                          <span className="px-3 py-1 rounded-full bg-green-200 text-green-800 font-semibold text-xs">Video Feed Available</span>
-                        ) : (
-                          <span className="px-3 py-1 rounded-full bg-gray-200 text-gray-600 font-semibold text-xs">No Video</span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              </>
             )}
           </div>
         )}

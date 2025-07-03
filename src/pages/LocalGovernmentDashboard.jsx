@@ -22,6 +22,45 @@ const LocalGovernmentDashboard = () => {
     return () => window.removeEventListener("storage", onStorage);
   }, [messages]);
 
+  // Sidebar tabs
+  const sidebarTabs = [
+    { key: 'alerts', label: 'Disaster Alert Notifications', icon: <FaBroadcastTower /> },
+    { key: 'damage', label: 'Damage Assessment Reports', icon: <FaClipboardList /> },
+    { key: 'evac', label: 'Evacuation Planning & Scheduling', icon: <FaRoute /> },
+    { key: 'resources', label: 'Resource Tracking', icon: <FaTruck /> },
+    { key: 'announcements', label: 'Public Announcement Generator', icon: <FaBullhorn /> },
+  ];
+  const [activeTab, setActiveTab] = useState('alerts');
+
+  // Tab content
+  const tabContent = {
+    alerts: {
+      title: 'Disaster Alert Notifications',
+      icon: <FaBroadcastTower />,
+      desc: 'View and manage real-time disaster alerts for your municipality. Issue public warnings and monitor alert status.'
+    },
+    damage: {
+      title: 'Damage Assessment Reports',
+      icon: <FaClipboardList />,
+      desc: 'Access and submit damage assessment reports. Review field data and photos from affected areas.'
+    },
+    evac: {
+      title: 'Evacuation Planning & Scheduling',
+      icon: <FaRoute />,
+      desc: 'Plan and schedule evacuation routes. Assign shelters and track evacuation progress in real time.'
+    },
+    resources: {
+      title: 'Resource Tracking',
+      icon: <FaTruck />,
+      desc: 'Monitor the status and location of critical resources (vehicles, supplies, personnel) for disaster response.'
+    },
+    announcements: {
+      title: 'Public Announcement Generator',
+      icon: <FaBullhorn />,
+      desc: 'Draft and broadcast public announcements to inform citizens about safety measures, evacuation orders, and updates.'
+    },
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-200 p-8">
       <nav className="navbar h-16 fixed top-0 left-0 w-full z-40 bg-white shadow flex items-center px-8">
@@ -34,32 +73,32 @@ const LocalGovernmentDashboard = () => {
           <li><button onClick={() => { localStorage.removeItem('userRole'); window.location.href = '/'; }} className="hover:underline">Logout</button></li>
         </ul>
       </nav>
-      <div className="pt-20 max-w-6xl mx-auto bg-white/90 rounded-xl shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-blue-700 mb-6 flex items-center gap-3">
-          <FaMapMarkedAlt className="text-blue-500" /> Local Government Dashboard
-        </h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-blue-50 rounded-lg p-6 shadow flex flex-col gap-4">
-            <h2 className="text-xl font-semibold text-blue-700 flex items-center gap-2"><FaBroadcastTower /> Disaster Alert Notifications</h2>
-            <div className="text-gray-700">View and manage real-time disaster alerts for your municipality. Issue public warnings and monitor alert status.</div>
+      <div className="pt-20 max-w-7xl mx-auto flex gap-0">
+        {/* Sidebar */}
+        <aside className="w-72 bg-white/90 shadow-2xl flex flex-col py-10 px-6 gap-8 h-[calc(100vh-5rem)] z-40 rounded-tr-3xl rounded-br-3xl border-r-4 border-blue-200 backdrop-blur-md">
+          <h1 className="text-2xl font-extrabold text-blue-700 mb-10 tracking-tight">Navigation</h1>
+          <nav className="flex flex-col gap-4">
+            {sidebarTabs.map(tab => (
+              <button
+                key={tab.key}
+                className={`flex items-center gap-4 px-6 py-3 rounded-xl font-bold text-lg shadow transition-all duration-200 border-2 focus:outline-none tracking-tight ${activeTab === tab.key ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+        {/* Main Content */}
+        <main className="flex-1 p-10 mt-4 overflow-y-auto h-[calc(100vh-5rem)]">
+          <div className="bg-white/95 rounded-3xl shadow-2xl p-10 border-4 border-blue-100">
+            <h1 className="text-3xl font-bold text-blue-700 mb-6 flex items-center gap-3">
+              {tabContent[activeTab].icon} {tabContent[activeTab].title}
+            </h1>
+            <div className="text-blue-900 text-lg mb-2 font-semibold">{tabContent[activeTab].desc}</div>
+            {/* Add more detailed content for each tab here as needed */}
           </div>
-          <div className="bg-blue-50 rounded-lg p-6 shadow flex flex-col gap-4">
-            <h2 className="text-xl font-semibold text-blue-700 flex items-center gap-2"><FaClipboardList /> Damage Assessment Reports</h2>
-            <div className="text-gray-700">Access and submit damage assessment reports. Review field data and photos from affected areas.</div>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-6 shadow flex flex-col gap-4">
-            <h2 className="text-xl font-semibold text-blue-700 flex items-center gap-2"><FaRoute /> Evacuation Planning & Scheduling</h2>
-            <div className="text-gray-700">Plan and schedule evacuation routes. Assign shelters and track evacuation progress in real time.</div>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-6 shadow flex flex-col gap-4">
-            <h2 className="text-xl font-semibold text-blue-700 flex items-center gap-2"><FaTruck /> Resource Tracking</h2>
-            <div className="text-gray-700">Monitor the status and location of critical resources (vehicles, supplies, personnel) for disaster response.</div>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-6 shadow flex flex-col gap-4 md:col-span-2">
-            <h2 className="text-xl font-semibold text-blue-700 flex items-center gap-2"><FaBullhorn /> Public Announcement Generator</h2>
-            <div className="text-gray-700">Draft and broadcast public announcements to inform citizens about safety measures, evacuation orders, and updates.</div>
-          </div>
-        </div>
+        </main>
       </div>
     </div>
   );
