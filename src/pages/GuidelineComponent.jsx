@@ -1,10 +1,9 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import vid2 from '/videos/flood.mp4'
 import vid1 from '/videos/landslide.mp4'
 import vid3 from '/videos/shock.mp4'
 import vid4 from '/videos/earthq.mp4'
-import { FaHome, FaBook, FaUpload, FaUserShield } from "react-icons/fa";
 
 const disasterGuidelines = {
   landslide: {
@@ -39,54 +38,82 @@ const hazards = [
 const GuidelineComponent = () => {
   const [selectedDisaster, setSelectedDisaster] = useState("landslide");
   const guideline = disasterGuidelines[selectedDisaster];
+  const locationHook = useLocation();
+
+  // Function to determine if a nav item is active
+  const isActiveNavItem = (path) => {
+    return locationHook.pathname === path;
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-200 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-200 flex flex-col">
       {/* Top Navbar */}
-      <nav className="flex items-center justify-between bg-white shadow px-6 py-3">
-        <div className="flex items-center gap-2 text-blue-700 font-bold text-xl">
-          <span className="text-2xl">🌐</span> Tera Alert
+      <nav className="terra-navbar h-16 fixed top-0 left-0 w-full z-50 bg-white shadow-xl flex items-center px-8 border-b border-green-300 backdrop-blur-lg" style={{ backgroundColor: 'white' }}>
+        <div className="logo flex items-center">
+          <img src="/src/pages/logo.png" alt="TerraALERT Logo" className="h-10 w-auto drop-shadow-lg" />
         </div>
-        <ul className="flex gap-6 text-gray-700 font-medium">
-          <li><Link to="/" className="flex items-center gap-1 hover:text-blue-600"><FaHome /> Home</Link></li>
-          <li><Link to="/guide" className="flex items-center gap-1 hover:text-blue-600"><FaBook /> Guideline</Link></li>
-          <li><Link to="/upload" className="flex items-center gap-1 hover:text-blue-600"><FaUpload /> Create Alert</Link></li>
-          <li><Link to="/admin" className="flex items-center gap-1 hover:text-blue-600"><FaUserShield /> Administration</Link></li>
+        <ul className="menu flex gap-8 ml-auto text-green-800 font-semibold text-lg" style={{ color: '#166534' }}>
+          <li>
+            <Link to="/" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/') ? '#bbf7d0' : 'transparent' }}>
+              Home
+            </Link>
+          </li>
+          <li>
+            <Link to="/guide" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/guide') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/guide') ? '#bbf7d0' : 'transparent' }}>
+              Guidelines
+            </Link>
+          </li>
+          <li>
+            <Link to="/upload" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/upload') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/upload') ? '#bbf7d0' : 'transparent' }}>
+              Create Alert
+            </Link>
+          </li>
+          <li>
+            <Link to="/admin" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/admin') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/admin') ? '#bbf7d0' : 'transparent' }}>
+              Administration
+            </Link>
+          </li>
         </ul>
       </nav>
 
-      {/* Hazard Tabs */}
-      <div className="flex justify-center mt-6 mb-2 gap-4">
-        {hazards.map((hazard) => (
-          <button
-            key={hazard.key}
-            className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 shadow-sm border-2 focus:outline-none ${selectedDisaster === hazard.key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-100'}`}
-            onClick={() => setSelectedDisaster(hazard.key)}
-          >
-            {hazard.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Main Content */}
-      <div className="flex flex-col md:flex-row gap-8 px-6 py-8 max-w-5xl mx-auto w-full bg-white/80 rounded-xl shadow-lg mt-4">
-        {/* Text Section */}
-        <div className="flex-1 flex flex-col justify-center">
-          <h2 className="text-2xl font-bold text-blue-700 mb-4">{guideline.title}</h2>
-          <ul className="list-disc pl-6 text-gray-700 space-y-2 whitespace-pre-line">
-            {guideline.text.split('\n').map((line, idx) => (
-              <li key={idx}>{line.replace(/^- /, "")}</li>
-            ))}
-          </ul>
+      {/* Add padding top for fixed navbar */}
+      <div className="pt-20">
+        {/* Hazard Tabs */}
+        <div className="flex justify-center mt-6 mb-2 gap-4">
+          {hazards.map((hazard) => (
+            <button
+              key={hazard.key}
+              className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 shadow-sm border-2 focus:outline-none ${selectedDisaster === hazard.key ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-700 border-green-300 hover:bg-green-100'}`}
+              onClick={() => setSelectedDisaster(hazard.key)}
+            >
+              {hazard.label}
+            </button>
+          ))}
         </div>
-        {/* Video Section */}
-        <div className="flex-1 flex flex-col items-center justify-center">
-          <video
-            src={guideline.video}
-            controls
-            className="rounded-lg shadow-lg w-full max-w-md border-2 border-blue-200"
-            title={guideline.title}
-          />
+
+        {/* Main Content */}
+        <div className="flex flex-col md:flex-row gap-8 px-6 py-8 max-w-5xl mx-auto w-full bg-white/80 rounded-xl shadow-lg mt-4 border-2 border-green-200">
+          {/* Text Section */}
+          <div className="flex-1 flex flex-col justify-center">
+            <h2 className="text-2xl font-bold text-green-700 mb-4">{guideline.title}</h2>
+            <ul className="list-disc pl-6 text-gray-700 space-y-2 whitespace-pre-line">
+              {guideline.text.split('\n').map((line, idx) => (
+                <li key={idx}>{line.replace(/^- /, "")}</li>
+              ))}
+            </ul>
+          </div>
+          {/* Video Section */}
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <video
+              src={guideline.video}
+              controls
+              autoPlay
+              muted
+              loop
+              className="rounded-lg shadow-lg w-full max-w-md border-2 border-green-200"
+              title={guideline.title}
+            />
+          </div>
         </div>
       </div>
     </div>

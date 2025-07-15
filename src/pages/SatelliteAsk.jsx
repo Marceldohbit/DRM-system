@@ -48,36 +48,36 @@ const SatelliteAsk = ({ report }) => {
   return (
     <span className="inline-block align-middle">
       <button
-        className="ml-2 p-2 rounded-full bg-gradient-to-br from-green-400 via-blue-400 to-blue-600 hover:from-blue-500 hover:to-green-500 text-white shadow-lg border-2 border-white hover:scale-110 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="ml-2 p-2 rounded-full bg-gradient-to-br from-green-400 via-green-500 to-green-600 hover:from-green-500 hover:to-green-700 text-white shadow-lg border-2 border-white hover:scale-110 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-400"
         title="Ask DeepSeek about this report"
-        style={{ boxShadow: '0 2px 8px 0 rgba(0,80,180,0.15)' }}
+        style={{ boxShadow: '0 2px 8px 0 rgba(0,128,80,0.15)' }}
         onClick={() => setShow(true)}
       >
         <FaRegCommentDots className="text-lg" />
       </button>
       {show && (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center z-40">
-          <div className="bg-gradient-to-br from-blue-50 via-white to-blue-100 rounded-2xl shadow-2xl p-0 w-full max-w-lg relative border border-blue-200 flex flex-col overflow-hidden animate-fadeIn" style={{minHeight:'420px'}}>
+          <div className="bg-gradient-to-br from-green-50 via-white to-green-100 rounded-2xl shadow-2xl p-0 w-full max-w-lg relative border border-green-200 flex flex-col overflow-hidden animate-fadeIn" style={{minHeight:'420px'}}>
             <button className="absolute top-3 right-4 text-3xl text-gray-400 hover:text-red-500 font-bold z-10" onClick={() => setShow(false)}>&times;</button>
-            <div className="flex items-center gap-3 px-6 pt-6 pb-2 border-b border-blue-100 bg-gradient-to-r from-blue-700 to-blue-400">
+            <div className="flex items-center gap-3 px-6 pt-6 pb-2 border-b border-green-100 bg-gradient-to-r from-green-700 to-green-400">
               <FaRegCommentDots className="text-2xl text-white" />
-              <h3 className="text-xl font-extrabold text-white tracking-tight">Satellite Report Chat</h3>
+              <h3 className="text-xl font-extrabold text-white tracking-tight !text-white">Satellite Report Chat</h3>
             </div>
-            <div className="px-6 pt-3 pb-2 text-xs text-blue-700 bg-blue-50 rounded-b-lg whitespace-pre-line font-mono border-b border-blue-100">
+            <div className="px-6 pt-3 pb-2 text-xs text-green-700 bg-green-50 rounded-b-lg whitespace-pre-line font-mono border-b border-green-100">
               {contextString}
             </div>
             <div className="flex-1 flex flex-col gap-2 px-6 py-4 bg-white min-h-[120px] max-h-72 overflow-y-auto rounded">
               {/* Chat bubbles */}
               {question && (
                 <div className="flex justify-end mb-1">
-                  <div className="bg-blue-600 text-white px-4 py-2 rounded-2xl rounded-br-sm shadow max-w-[80%] text-sm">
+                  <div className="bg-green-600 text-white px-4 py-2 rounded-2xl rounded-br-sm shadow max-w-[80%] text-sm">
                     {question}
                   </div>
                 </div>
               )}
               {answer && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 px-4 py-2 rounded-2xl rounded-bl-sm shadow max-w-[80%] text-gray-800 text-sm prose prose-blue whitespace-pre-line" style={{overflowWrap:'anywhere'}}>
+                  <div className="bg-gray-100 px-4 py-2 rounded-2xl rounded-bl-sm shadow max-w-[80%] text-gray-800 text-sm prose prose-green whitespace-pre-line" style={{overflowWrap:'anywhere'}}>
                     {/* Format markdown-like response */}
                     <FormattedAnswer answer={answer} />
                   </div>
@@ -89,24 +89,24 @@ const SatelliteAsk = ({ report }) => {
                 </div>
               )}
             </div>
-            <form className="flex gap-2 px-6 py-4 bg-blue-50 border-t border-blue-100" onSubmit={e => { e.preventDefault(); askQuestion(); }}>
+            <form className="flex gap-2 px-6 py-4 bg-green-50 border-t border-green-100" onSubmit={e => { e.preventDefault(); askQuestion(); }}>
               <input
                 type="text"
                 value={question}
                 onChange={e => setQuestion(e.target.value)}
                 placeholder="Ask anything about this report..."
-                className="flex-1 p-2 border border-blue-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="flex-1 p-2 border border-green-200 rounded focus:outline-none focus:ring-2 focus:ring-green-400"
                 disabled={loading}
                 autoFocus
               />
               <button
-                className="flex items-center gap-2 bg-gradient-to-br from-green-400 via-blue-400 to-blue-600 hover:from-blue-500 hover:to-green-500 text-white px-6 py-2 rounded-full font-bold shadow-lg border-2 border-white hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-400 disabled:opacity-60"
+                className="flex items-center gap-2 bg-gradient-to-br from-green-400 via-green-500 to-green-600 hover:from-green-500 hover:to-green-700 text-white px-6 py-2 rounded-full font-bold shadow-lg border-2 border-white hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:bg-gray-400 disabled:opacity-60"
                 type="submit"
                 disabled={loading || !question}
-                style={{ boxShadow: '0 2px 8px 0 rgba(0,80,180,0.10)' }}
+                style={{ boxShadow: '0 2px 8px 0 rgba(0,128,80,0.10)' }}
               >
                 {loading ? (
-                  <span className="flex items-center gap-2"><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-blue-400 rounded-full"></span> Asking...</span>
+                  <span className="flex items-center gap-2"><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-green-400 rounded-full"></span> Asking...</span>
                 ) : (
                   <>
                     <FaRegCommentDots className="text-lg" /> Ask

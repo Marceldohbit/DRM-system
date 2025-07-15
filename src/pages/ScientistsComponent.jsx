@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Line } from "react-chartjs-2";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import aggressiveSound from "./siren.mp3";
 import im4 from '/images/img4.jpg'
+import floodImage from '/images/floods-mankolo.jpg'
+import eruptionImage from '/images/eruption-buea1.jpg'
 import MapComponent from "./MapComponent";
 import { FaMountain, FaWater, FaVolcano } from "react-icons/fa6";
 import { MapContainer, TileLayer, Marker, Popup, Polygon } from 'react-leaflet';
@@ -45,7 +47,7 @@ const hazards = [
 
 const sidebarTabs = [
   ...hazards,
-  { key: "satellite", label: "Satellites", icon: <FaRegCircle /> },
+  { key: "satellite", label: "UAVs", icon: <FaRegCircle /> },
 ];
 
 // Satellite data
@@ -56,7 +58,7 @@ const satelliteList = [
     measures: "Thermal Imaging, Ground Deformation",
     zone: "Buea",
     stationary: false,
-    color: "#1d4ed8",
+    color: "#16a34a",
     // Buea: approx 4.159, 9.241
     trajectory: [
       { lat: 4.159, lng: 9.241 },
@@ -146,7 +148,7 @@ const hazardVulnerabilityReports = {
   flood: [
     {
       id: 1,
-      image: im4,
+      image: floodImage,
       location: { lat: 4.159, lng: 9.241 },
       address: "Buea, Cameroon",
       severity: "critical",
@@ -155,7 +157,7 @@ const hazardVulnerabilityReports = {
     },
     {
       id: 2,
-      image: im4,
+      image: floodImage,
       location: { lat: 4.035, lng: 9.689 },
       address: "Limbe, Cameroon",
       severity: "moderate",
@@ -166,7 +168,7 @@ const hazardVulnerabilityReports = {
   volcano: [
     {
       id: 1,
-      image: im4,
+      image: eruptionImage,
       location: { lat: 4.159, lng: 9.241 },
       address: "Buea, Cameroon",
       severity: "critical",
@@ -175,7 +177,7 @@ const hazardVulnerabilityReports = {
     },
     {
       id: 2,
-      image: im4,
+      image: eruptionImage,
       location: { lat: 4.035, lng: 9.689 },
       address: "Limbe, Cameroon",
       severity: "low",
@@ -255,8 +257,16 @@ const hazardSensors = {
 };
 
 import CircleAnimation from "./CircleAnimation";
+import HexagonAnimation from "./HexagonAnimation";
 
 const ScientistsComponent = () => {
+  const location = useLocation();
+  
+  // Function to determine if a nav item is active
+  const isActiveNavItem = (path) => {
+    return location.pathname === path;
+  };
+
   const [region, setRegion] = useState("Northwest");
   const [sensorData, setSensorData] = useState([[], [], []]);
   const [vulnerabilityData, setVulnerabilityData] = useState([[], [], []]);
@@ -272,7 +282,7 @@ const ScientistsComponent = () => {
   const [showSatelliteMap, setShowSatelliteMap] = useState(null); // satellite id or null
 
   // --- Animated Orbit for Satellites ---
-  // For each moving satellite, define a zone center and max radius (for spiral/circular orbit)
+  // For each moving satellite, define a zone center and max radius (for grid-based orbit)
   const satelliteOrbitParams = satelliteList.map(sat => {
     if (sat.stationary) {
       return { center: sat.position, maxRadius: 0, angleOffset: 0, orbitPeriod: 20000 };
@@ -287,12 +297,13 @@ const ScientistsComponent = () => {
       const d = Math.sqrt(Math.pow(p.lat - avgLat, 2) + Math.pow(p.lng - avgLng, 2));
       maxRadius = Math.max(maxRadius, d);
     });
-    maxRadius += 0.01; // tighter for city
+    // Increase the scanning area for comprehensive grid coverage
+    maxRadius = (maxRadius + 0.02) * 1.2; // larger area for grid scanning
     const angleOffset = Math.random() * 2 * Math.PI;
-    return { center: { lat: avgLat, lng: avgLng }, maxRadius, angleOffset, orbitPeriod: sat.orbitPeriod || 24000 };
+    return { center: { lat: avgLat, lng: avgLng }, maxRadius, angleOffset, orbitPeriod: sat.orbitPeriod || 90000 };
   });
 
-  // Animate satellites smoothly along their orbits
+  // Animate satellites in square wave pattern
   const [satellitePositions, setSatellitePositions] = useState(() =>
     satelliteList.map((sat, i) => sat.stationary ? sat.position : { ...satelliteOrbitParams[i].center })
   );
@@ -305,17 +316,36 @@ const ScientistsComponent = () => {
         satelliteList.map((sat, i) => {
           if (sat.stationary) return sat.position;
           const { center, maxRadius, angleOffset, orbitPeriod } = satelliteOrbitParams[i];
-          // Spiral period: use orbitPeriod for each satellite
+          // Grid-based scanning period: use orbitPeriod for each satellite
           const period = orbitPeriod;
           const t = ((now % period) / period); // 0 to 1
-          // Spiral radius: goes from 0.3*maxRadius to maxRadius and back
-          const spiralRadius = 0.3 * maxRadius + (maxRadius - 0.3 * maxRadius) * (0.5 - 0.5 * Math.cos(2 * Math.PI * t));
-          // Angle for orbiting
-          const theta = (2 * Math.PI * t * 2 + angleOffset) % (2 * Math.PI); // 2 orbits per spiral
-          return {
-            lat: center.lat + spiralRadius * Math.cos(theta),
-            lng: center.lng + spiralRadius * Math.sin(theta),
-          };
+          
+          // Grid-based vertical strip scanning pattern
+          const gridColumns = 12; // More strips for narrower width when turning right
+          const stripWidth = (maxRadius * 2) / gridColumns;
+          
+          // Calculate which strip we're in and progress within that strip
+          const totalProgress = t * gridColumns;
+          const currentStrip = Math.floor(totalProgress);
+          const stripProgress = totalProgress % 1; // 0 to 1 within current strip
+          
+          // Calculate the x position (longitude) for the current strip
+          const stripLng = center.lng - maxRadius + (currentStrip * stripWidth) + (stripWidth * 0.5);
+          
+          // Calculate vertical movement within the strip
+          // Move up and down in alternating strips for continuous coverage
+          let lat;
+          if (currentStrip % 2 === 0) {
+            // Even strips: move from bottom to top
+            lat = center.lat - maxRadius + (stripProgress * maxRadius * 2);
+          } else {
+            // Odd strips: move from top to bottom
+            lat = center.lat + maxRadius - (stripProgress * maxRadius * 2);
+          }
+          
+          const lng = stripLng;
+          
+          return { lat, lng };
         })
       );
       frame = requestAnimationFrame(animate);
@@ -687,6 +717,20 @@ function getPentagonPoints(center, size = 0.01) {
   return points;
 }
 
+// Hexagon points generator
+function getHexagonPoints(center, size = 0.01) {
+  // size is the radius in degrees
+  const points = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (2 * Math.PI * i) / 6 - Math.PI / 2;
+    points.push([
+      center.lat + size * Math.cos(angle),
+      center.lng + size * Math.sin(angle),
+    ]);
+  }
+  return points;
+}
+
 // Ensure reports is defined in the component before use
 const reports = hazardVulnerabilityReports[activeHazard] || [];
 
@@ -694,26 +738,28 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
     <>
     {/* Hide navbar when showing sensor map */}
     {showSensorMap === null && (
-      <nav className="navbar h-18 fixed top-0 left-0 w-full z-50 bg-gradient-to-r from-indigo-900 via-indigo-600 to-cyan-500 shadow-xl flex items-center px-10 border-b border-indigo-300 backdrop-blur-lg">
-        <div className="logo font-extrabold text-3xl tracking-tight text-white drop-shadow-lg">TerraALERT</div>
-        <ul className="menu flex gap-10 ml-auto text-white font-semibold text-lg">
-          <li><Link to="/science" className="hover:text-cyan-200 transition">Dashboard</Link></li>
-          <li><Link to="/message?role=Scientists" className="hover:text-cyan-200 transition">Messaging</Link></li>
-          <li><Link to="/upload" className="hover:text-cyan-200 transition">Create Alert</Link></li>
-          <li><Link to="/admin" className="hover:text-cyan-200 transition">Administration</Link></li>
-          <li><button onClick={() => { localStorage.removeItem('userRole'); window.location.href = '/'; }} className="hover:underline">Logout</button></li>
+      <nav className="terra-navbar h-18 fixed top-0 left-0 w-full z-50 bg-white shadow-xl flex items-center px-10 border-b border-green-300 backdrop-blur-lg" style={{ backgroundColor: 'white' }}>
+        <div className="logo flex items-center">
+          <img src="/src/pages/logo.png" alt="TerraALERT Logo" className="h-12 w-auto drop-shadow-lg" />
+        </div>
+        <ul className="menu flex gap-10 ml-auto text-green-800 font-semibold text-lg" style={{ color: '#166534' }}>
+          <li><Link to="/science" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/science') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/science') ? '#bbf7d0' : 'transparent' }}>Dashboard</Link></li>
+          <li><Link to="/message?role=Scientists" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/message') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/message') ? '#bbf7d0' : 'transparent' }}>Messaging</Link></li>
+          <li><Link to="/upload" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/upload') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/upload') ? '#bbf7d0' : 'transparent' }}>Create Alert</Link></li>
+          <li><Link to="/admin" className={`hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 ${isActiveNavItem('/admin') ? 'bg-green-200 border-2 border-green-500 shadow-md' : ''}`} style={{ color: '#166534', backgroundColor: isActiveNavItem('/admin') ? '#bbf7d0' : 'transparent' }}>Administration</Link></li>
+          <li><button onClick={() => { localStorage.removeItem('userRole'); window.location.href = '/'; }} className="hover:text-green-600 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-green-100 border border-green-500 hover:border-green-600" style={{ color: '#166534' }}>Logout</button></li>
         </ul>
       </nav>
     )}
-    <div className="min-h-screen flex bg-gradient-to-br from-blue-100 via-blue-200 to-blue-50 pt-24">
+    <div className="min-h-screen flex bg-gradient-to-br from-green-100 via-green-200 to-green-50 pt-24">
     {/* Sidebar Navigation */}
-    <aside className="w-72 bg-white/80 shadow-2xl flex flex-col py-10 px-6 gap-8 fixed top-20 left-0 h-[calc(100vh-5rem)] z-40 rounded-tr-3xl rounded-br-3xl border-r border-blue-200 backdrop-blur-md">
-      <h1 className="text-3xl font-extrabold text-blue-800 mb-10 tracking-tight">Navigation</h1>
+    <aside className="w-72 bg-white/80 shadow-2xl flex flex-col py-10 px-6 gap-8 fixed top-20 left-0 h-[calc(100vh-5rem)] z-40 rounded-tr-3xl rounded-br-3xl border-r border-green-200 backdrop-blur-md">
+      <h1 className="text-3xl font-extrabold text-green-800 mb-10 tracking-tight">Navigation</h1>
       <nav className="flex flex-col gap-6">
         {sidebarTabs.map((tab) => (
           <button
             key={tab.key}
-            className={`flex items-center gap-4 px-6 py-3 rounded-xl font-bold text-lg shadow transition-all duration-200 border-2 focus:outline-none tracking-tight ${activeSidebarTab === tab.key ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
+            className={`flex items-center gap-4 px-6 py-3 rounded-xl font-bold text-lg shadow transition-all duration-200 border-2 focus:outline-none tracking-tight ${activeSidebarTab === tab.key ? 'bg-gradient-to-r from-green-600 to-green-400 text-white border-green-600 shadow-lg scale-105' : 'bg-white/80 text-green-800 border-green-300 hover:bg-green-100/80'}`}
             onClick={() => {
               setActiveSidebarTab(tab.key);
               if (hazards.some(h => h.key === tab.key)) setActiveHazard(tab.key);
@@ -726,19 +772,19 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
     </aside>
     {/* Main Content */}
     <main className="flex-1 p-10 ml-72 mt-4 overflow-y-auto h-[calc(100vh-5rem)]">
-      <div className="max-w-7xl mx-auto bg-white/95 rounded-3xl shadow-2xl p-10 border border-blue-100">
+      <div className="max-w-7xl mx-auto bg-white/95 rounded-3xl shadow-2xl p-10 border border-green-100">
         {/* Sidebar tab content switch */}
         {activeSidebarTab !== 'satellite' ? (
           <>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-10 gap-6">
-              <h2 className="text-3xl font-extrabold text-blue-800 tracking-tight drop-shadow">{hazards.find(h => h.key === activeHazard)?.label} Dashboard</h2>
+              <h2 className="text-3xl font-extrabold text-green-800 tracking-tight drop-shadow">{hazards.find(h => h.key === activeHazard)?.label} Dashboard</h2>
               <div className="flex gap-4">
                 <button
-                  className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'sensor' ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
+                  className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'sensor' ? 'bg-gradient-to-r from-green-600 to-green-400 text-white border-green-600 shadow-lg scale-105' : 'bg-white/80 text-green-800 border-green-300 hover:bg-green-100/80'}`}
                   onClick={() => setActiveTab('sensor')}
                 >Sensor Data</button>
                 <button
-                  className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'vulnerability' ? 'bg-gradient-to-r from-blue-600 to-blue-400 text-white border-blue-600 shadow-lg scale-105' : 'bg-white/80 text-blue-800 border-blue-300 hover:bg-blue-100/80'}`}
+                  className={`px-6 py-2 rounded-full font-bold border-2 text-lg shadow transition-all duration-200 focus:outline-none tracking-tight ${activeTab === 'vulnerability' ? 'bg-gradient-to-r from-green-600 to-green-400 text-white border-green-600 shadow-lg scale-105' : 'bg-white/80 text-green-800 border-green-300 hover:bg-green-100/80'}`}
                   onClick={() => setActiveTab('vulnerability')}
                 >Vulnerability Assessment</button>
               </div>
@@ -751,7 +797,7 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Region</label>
                     <select
-                      className="border border-gray-300 rounded px-3 py-2"
+                      className="border border-green-300 rounded px-3 py-2 focus:border-green-500 focus:outline-none"
                       value={selectedRegion}
                       onChange={e => setSelectedRegion(e.target.value)}
                     >
@@ -765,14 +811,14 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                     <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                     <input
                       type="text"
-                      className="border border-gray-300 rounded px-3 py-2"
+                      className="border border-green-300 rounded px-3 py-2 focus:border-green-500 focus:outline-none"
                       placeholder="Sensor name or address"
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                     />
                   </div>
                   <button
-                    className="ml-2 px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                    className="ml-2 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
                     onClick={() => { /* No-op, search is live, but button for UI */ }}
                   >Search</button>
                   <button
@@ -793,7 +839,7 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                         <label className="block text-sm font-medium mb-1">Longitude</label>
                         <input type="number" className="border rounded px-3 py-2 w-full" value={newLng} onChange={e => setNewLng(e.target.value)} />
                       </div>
-                      <button className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700" onClick={handleAddSensor}>Add</button>
+                      <button className="w-full bg-green-600 text-white py-2 rounded font-semibold hover:bg-green-700" onClick={handleAddSensor}>Add</button>
                     </div>
                   </div>
                 )}
@@ -804,21 +850,21 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                     return (
                       <div
                         key={sensor.id}
-                        className="relative bg-blue-50 rounded-lg p-6 shadow flex flex-col"
+                        className="relative bg-green-50 rounded-lg p-6 shadow flex flex-col"
                         style={{ height: '22rem', minHeight: '16rem' }}
                       >
                         <div className="flex justify-between items-center mb-2">
                           <h3 className="text-lg font-semibold">{sensor.name} <span className="text-xs text-gray-500">({sensor.address})</span></h3>
                           <div className="flex gap-2">
                             <button
-                              className="p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800"
+                              className="p-2 rounded-full bg-green-200 hover:bg-green-400 text-green-800"
                               onClick={() => setShowSensorMap(sensor.id)}
                               title="Show on Map"
                             >
                               <FaMapMarkerAlt />
                             </button>
                             <button
-                              className="p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800"
+                              className="p-2 rounded-full bg-green-200 hover:bg-green-400 text-green-800"
                               onClick={() => setBigSensor(bigSensor === sensor.id ? null : sensor.id)}
                               title={bigSensor === sensor.id ? "Minimize" : "Show Details"}
                             >
@@ -835,8 +881,8 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                                 {
                                   label: 'Aggregate Value',
                                   data: (sensorHistories[sensorIdx] || []).map(h => aggregateSensorValuesForSensor(h, activeHazard)).reverse(),
-                                  borderColor: 'rgb(37, 99, 235)',
-                                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                  borderColor: 'rgb(34, 197, 94)',
+                                  backgroundColor: 'rgba(34, 197, 94, 0.1)',
                                   borderWidth: 3,
                                   pointRadius: 2,
                                   tension: 0.4,
@@ -861,7 +907,7 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                         </div>
                         {/* Expandable parameters below the graph */}
                         {bigSensor === sensor.id && (
-                          <div className="bg-white bg-opacity-95 rounded-b-lg p-4 z-10 shadow-xl border-t border-blue-200 mt-2">
+                          <div className="bg-white bg-opacity-95 rounded-b-lg p-4 z-10 shadow-xl border-t border-green-200 mt-2">
                             <button className="absolute right-6 top-2 text-lg font-bold text-gray-500 hover:text-red-600" onClick={() => setBigSensor(null)} title="Close">&times;</button>
                             <ul className="space-y-2">
                               {((sensorHistories[sensorIdx] && sensorHistories[sensorIdx][0]) || []).map((param, pidx) => {
@@ -873,7 +919,7 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                                 return (
                                   <li key={param.key} className="flex justify-between items-center text-gray-700">
                                     <span>{param.label}</span>
-                                    <span className={`font-mono font-bold px-2 py-1 rounded ${isCritical ? 'bg-red-500 text-white' : 'text-blue-700 bg-white'}`}>{param.value}</span>
+                                    <span className={`font-mono font-bold px-2 py-1 rounded ${isCritical ? 'bg-red-500 text-white' : 'text-green-700 bg-white'}`}>{param.value}</span>
                                   </li>
                                 );
                               })}
@@ -915,24 +961,24 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
         ) : (
           // Satellite tab content
           <>
-            <h2 className="text-3xl font-extrabold text-blue-800 tracking-tight drop-shadow mb-8">Satellites Dashboard</h2>
+            <h2 className="text-3xl font-extrabold text-green-800 tracking-tight drop-shadow mb-8">Satellites Dashboard</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
               {satelliteList.map((sat, idx) => (
-                <div key={sat.id} className="relative bg-blue-50 rounded-lg p-6 shadow flex flex-col border border-blue-200">
+                <div key={sat.id} className="relative bg-green-50 rounded-lg p-6 shadow flex flex-col border border-green-200">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="inline-block w-4 h-4 rounded-full" style={{ background: sat.color }}></span>
-                    <span className="font-bold text-lg text-blue-900">{sat.name}</span>
+                    <span className="font-bold text-lg text-green-900">{sat.name}</span>
                     {sat.stationary && <span className="ml-2 px-2 py-1 rounded-full bg-purple-200 text-purple-800 text-xs font-semibold">Stationary</span>}
                   </div>
                   <div className="mb-1 text-gray-700"><span className="font-semibold">Measures:</span> {sat.measures}</div>
                   <div className="mb-1 text-gray-700"><span className="font-semibold">Zone:</span> {sat.zone}</div>
                   <div className="mb-1 text-gray-700"><span className="font-semibold">Current Position:</span> Lat: {satellitePositions[idx].lat.toFixed(3)}, Lng: {satellitePositions[idx].lng.toFixed(3)}
                     {!sat.stationary && (
-                      <span className="ml-2 text-xs text-blue-500 animate-pulse">(Orbiting)</span>
+                      <span className="ml-2 text-xs text-green-500 animate-pulse">(Orbiting)</span>
                     )}
                   </div>
                   <button
-                    className="mt-3 p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800 shadow self-start"
+                    className="mt-3 p-2 rounded-full bg-green-200 hover:bg-green-400 text-green-800 shadow self-start"
                     title="Show on Map"
                     onClick={() => setShowSatelliteMap(idx)}
                   >
@@ -955,31 +1001,36 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                     {/* Draw the zone as a circle for moving satellites */}
                     {!satelliteList[showSatelliteMap].stationary && (
                       <>
-                        {/* Draw the zone as a circle */}
+                        {/* Draw the zone as a bigger bouncing hexagon */}
                         {(() => {
                           const { center, maxRadius } = satelliteOrbitParams[showSatelliteMap];
                           // Convert maxRadius (in degrees) to meters (approx, 1 deg lat ~ 111km)
                           const meters = maxRadius * 111000;
                           return (
-                            <CircleAnimation
+                            <HexagonAnimation
                               lat={center.lat}
                               lng={center.lng}
                               color={satelliteList[showSatelliteMap].color}
-                              minRadius={meters * 0.98}
-                              maxRadius={meters * 1.02}
-                              duration={4000}
+                              minRadius={meters * 0.8}
+                              maxRadius={meters * 1.2}
+                              duration={6000}
+                              bouncing={true}
                             />
                           );
                         })()}
-                        {/* Moving marker with animated circle */}
+                        {/* Moving marker with animated hexagon and path tracing */}
                         <Marker position={[satellitePositions[showSatelliteMap].lat, satellitePositions[showSatelliteMap].lng]}>
                           <Popup>{satelliteList[showSatelliteMap].name} (Moving)</Popup>
                         </Marker>
-                        {/* Animated circle around marker */}
-                        <CircleAnimation
+                        {/* Animated smaller hexagon around marker */}
+                        <HexagonAnimation
                           lat={satellitePositions[showSatelliteMap].lat}
                           lng={satellitePositions[showSatelliteMap].lng}
                           color={satelliteList[showSatelliteMap].color}
+                          minRadius={100}
+                          maxRadius={200}
+                          duration={1500}
+                          bouncing={false}
                         />
                       </>
                     )}
@@ -988,11 +1039,15 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                         <Marker position={[satellitePositions[showSatelliteMap].lat, satellitePositions[showSatelliteMap].lng]}>
                           <Popup>{satelliteList[showSatelliteMap].name} (Stationary)</Popup>
                         </Marker>
-                        {/* Animated circle for stationary as well for consistency */}
-                        <CircleAnimation
+                        {/* Animated smaller hexagon for stationary as well for consistency */}
+                        <HexagonAnimation
                           lat={satellitePositions[showSatelliteMap].lat}
                           lng={satellitePositions[showSatelliteMap].lng}
                           color={satelliteList[showSatelliteMap].color}
+                          minRadius={150}
+                          maxRadius={250}
+                          duration={3000}
+                          bouncing={true}
                         />
                       </>
                     )}
@@ -1006,11 +1061,11 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
           <div className="flex flex-col gap-6">
             <div className="flex gap-4 mb-4">
               <button
-                className={`px-4 py-2 rounded-full font-semibold border-2 transition-all duration-200 focus:outline-none ${vulTab === 'user' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-100'}`}
+                className={`px-4 py-2 rounded-full font-semibold border-2 transition-all duration-200 focus:outline-none ${vulTab === 'user' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-700 border-green-300 hover:bg-green-100'}`}
                 onClick={() => setVulTab('user')}
               >User Reports</button>
               <button
-                className={`px-4 py-2 rounded-full font-semibold border-2 transition-all duration-200 focus:outline-none ${vulTab === 'sat' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-100'}`}
+                className={`px-4 py-2 rounded-full font-semibold border-2 transition-all duration-200 focus:outline-none ${vulTab === 'sat' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-green-700 border-green-300 hover:bg-green-100'}`}
                 onClick={() => setVulTab('sat')}
               >Satellite Analysis</button>
             </div>
@@ -1020,7 +1075,7 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                 <div className="flex-1 space-y-4">
                   <h3 className="text-lg font-semibold mb-2">User Vulnerability Reports</h3>
                   {/* Example user report, replace with real user data if available */}
-                  <div className="flex gap-4 bg-blue-50 rounded-lg p-4 shadow items-center">
+                  <div className="flex gap-4 bg-green-50 rounded-lg p-4 shadow items-center">
                     <img src={im4} alt="User Report" className="w-24 h-24 object-cover rounded border cursor-pointer" onClick={() => setFullscreenImg(im4)} />
                     <div className="flex-1">
                       <div className="font-semibold">Buea/Sanpit</div>
@@ -1047,7 +1102,7 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                   <div className="flex-1 space-y-4">
                     <h3 className="text-lg font-semibold mb-2">Satellite Vulnerability Reports</h3>
                     {satReports.map((report) => (
-                      <div key={report.id} className="flex gap-4 bg-blue-50 rounded-lg p-4 shadow items-center">
+                      <div key={report.id} className="flex gap-4 bg-green-50 rounded-lg p-4 shadow items-center">
                         <img src={report.image} alt="Satellite" className="w-24 h-24 object-cover rounded border cursor-pointer" onClick={() => setFullscreenImg(report.image)} />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -1059,7 +1114,7 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                           <div className="text-gray-700 text-sm">{report.description}</div>
                           {/* Map icon for full screen map */}
                           <button
-                            className="mt-2 p-2 rounded-full bg-blue-200 hover:bg-blue-400 text-blue-800 shadow"
+                            className="mt-2 p-2 rounded-full bg-green-200 hover:bg-green-400 text-green-800 shadow"
                             title="Show on Map"
                             onClick={() => setShowSensorMap(report.id)}
                           >
@@ -1069,37 +1124,39 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                           <SatelliteAsk report={report} />
                           {/* Command & Control for Drones/Satellites */}
                           <div className="mt-3 flex flex-col gap-2">
-                            <div className="font-semibold text-blue-700">Command & Control</div>
+                            <div className="font-semibold text-green-700">Command & Control</div>
                             <div className="flex gap-2 items-center">
                               <span className="text-sm text-gray-700">Lat: {report.location.lat}, Lng: {report.location.lng}</span>
                               <button
-                                className={`px-3 py-1 rounded font-semibold shadow ${report.videoRequested ? 'bg-gray-400 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                className={`px-4 py-2 rounded-lg font-semibold shadow-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 ${report.videoRequested ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 focus:ring-green-500'}`}
                                 onClick={() => handleRequestVideoFeed(report)}
                                 disabled={!!report.videoRequested}
                               >
-                                {report.videoRequested ? 'Video Requested' : 'Request Video Feed'}
+                                {report.videoRequested ? '✓ Video Requested' : 'Request Video Feed'}
                               </button>
                             </div>
                             {report.videoRequested && (
                               <div className="mt-2 p-2 bg-green-100 rounded text-green-700 font-semibold flex items-center gap-2">
                                 <FaVideo className="text-green-600" />
                                 <span>Video feed requested for ({report.location.lat}, {report.location.lng})</span>
-                                <button className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-700" onClick={() => handleViewVideoFeed(report)}>View Feed</button>
+                                <button className="ml-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg font-semibold shadow-lg hover:from-emerald-600 hover:to-teal-700 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2" onClick={() => handleViewVideoFeed(report)}>View Feed</button>
                               </div>
                             )}
                           </div>
                           {/* Additional actions */}
-                          <div className="mt-2 flex gap-2 items-center relative">
-                            <button className="px-3 py-1 rounded bg-yellow-500 text-white font-semibold hover:bg-yellow-600 shadow relative" onClick={() => handleMarkForInvestigation(report)}>
+                          <div className="mt-3 flex gap-3 items-center relative">
+                            <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-lg hover:from-amber-600 hover:to-orange-600 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 relative" onClick={() => handleMarkForInvestigation(report)}>
                               Mark for Investigation
                               {/* Green circled check if already marked */}
                               {investigationPoints.some(p => p.uniqueKey === `${activeHazard}-${report.id}`) && (
-                                <span className="absolute -top-3 -right-3 bg-white rounded-full p-1 shadow-lg z-10">
-                                  <FaCheckCircle className="text-green-500 text-xl" style={{ borderRadius: '50%', background: 'white' }} />
+                                <span className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-lg z-10">
+                                  <FaCheckCircle className="text-green-500 text-lg" style={{ borderRadius: '50%', background: 'white' }} />
                                 </span>
                               )}
                             </button>
-                            <button className="px-3 py-1 rounded bg-red-600 text-white font-semibold hover:bg-red-700 shadow" onClick={() => handleAlertAuthorities(report)}>Alert Authorities</button>
+                            <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold shadow-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" onClick={() => handleAlertAuthorities(report)}>
+                              Alert Authorities
+                            </button>
                           </div>
                           {showSensorMap === report.id && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
@@ -1127,18 +1184,18 @@ const reports = hazardVulnerabilityReports[activeHazard] || [];
                   {/* Satellite Analysis Map removed as requested */}
                 </div>
                 {/* Investigation Points List: always visible, even if empty */}
-                <div className="mt-8 bg-blue-50 rounded-xl p-6 shadow border border-blue-200">
-                  <h3 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">Investigation Points <FaCheckCircle className="text-yellow-500" /></h3>
+                <div className="mt-8 bg-green-50 rounded-xl p-6 shadow border border-green-200">
+                  <h3 className="text-xl font-bold text-green-800 mb-4 flex items-center gap-2">Investigation Points <FaCheckCircle className="text-yellow-500" /></h3>
                   {investigationPoints.length === 0 ? (
-                    <div className="text-blue-400 font-semibold">No points marked for investigation yet.</div>
+                    <div className="text-green-400 font-semibold">No points marked for investigation yet.</div>
                   ) : (
                     <ul className="space-y-3">
                       {investigationPoints.map(point => (
-                        <li key={point.uniqueKey} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-white rounded-lg p-4 shadow border border-blue-100">
+                        <li key={point.uniqueKey} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-white rounded-lg p-4 shadow border border-green-100">
                           <div className="flex items-center gap-2">
                             <FaCheckCircle className="text-yellow-500" title="Marked for Investigation" />
                             <div>
-                              <div className="font-semibold text-blue-700">{point.address}</div>
+                              <div className="font-semibold text-green-700">{point.address}</div>
                               <div className="text-sm text-gray-600">Lat: {point.lat}, Lng: {point.lng}</div>
                               <div className="text-xs text-gray-500">{point.description}</div>
                               <div className="text-xs text-gray-400">{point.time}</div>

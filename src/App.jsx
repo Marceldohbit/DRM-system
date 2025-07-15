@@ -23,6 +23,8 @@ function App() {
         <Route path="/science" exact element={<ScientistsComponent/>} />
         <Route path="/message" exact element={<MessagingComponent/>} />
         <Route path="/local-gov" exact element={<LocalGovernmentDashboard/>} />
+         <Route path="/local-government" exact element={<LocalGovernmentDashboard/>} />
+     
         <Route path="/military" exact element={<MilitaryDashboard/>} />
         <Route path="/health" exact element={<HealthPersonnelDashboard/>} />
         <Route path="/environmentalists" exact element={<EnvironmentalistDashboard/>} />
